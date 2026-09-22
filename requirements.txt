@@ -1,6 +1,49 @@
+# Core RAG infrastructure
 chromadb>=0.4.0
 qdrant-client>=1.7.0
 sentence-transformers>=2.2.2
-pdfplumber>=0.10.0 
-nltk>=3.8.1 
+pdfplumber>=0.10.0
+nltk>=3.8.1
+
+# CRAG additions
+rank-bm25>=0.2.2
+requests>=2.31.0
+urllib3>=2.0.7
+boto3>=1.34.0
+sqlalchemy>=2.0.25
+psycopg2-binary>=2.9.9
+ddgs>=9.16.0
+python-docx>=1.1.0
+rich>=13.7.0
+
+# Web server
+fastapi>=0.111.0
+uvicorn[standard]>=0.29.0
+python-multipart>=0.0.9
+
+# Testing
 pytest>=7.4.0
+pytest-mock>=3.12.0
+qdrant-client>=1.7.0
+sentence-transformers>=2.2.2
+pdfplumber>=0.10.0
+nltk>=3.8.1
+
+# CRAG additions
+rank-bm25>=0.2.2          # BM25 keyword retrieval
+ollama>=0.2.0             # Ollama Python client (optional, using requests directly)
+requests>=2.31.0          # Ollama HTTP API calls
+urllib3>=2.0.0            # Retry logic for HTTP sessions
+
+# Web fallback (open-source, no API key)
+duckduckgo-search>=6.0.0
+
+# Document support
+python-docx>=1.1.0        # .docx ingestion
+
+# CLI demo
+rich>=13.7.0              # Terminal UI
+
+# Testing
+pytest>=7.4.0
+pytest-mock>=3.12.0
