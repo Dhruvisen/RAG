@@ -12,6 +12,7 @@ from src.models.schemas import DocumentRecord
 from src.models.db import Document
 from src.utils.storage import upload_to_minio, get_from_minio, delete_from_minio
 from src.utils.core import get_crag, logger, get_db
+from src.utils.extractors import ExtractorFactory
 
 router = APIRouter()
 
@@ -46,35 +47,25 @@ async def upload_document(file: UploadFile = File(...), db: Session = Depends(ge
     if not upload_to_minio(object_name, content):
         raise HTTPException(500, "Failed to store raw file in MinIO.")
 
+    # Extract document text using Factory
+    try:
+        extractor = ExtractorFactory.get_extractor(suffix)
+        extracted_text = extractor.extract(content)
+    except Exception as exc:
+        delete_from_minio(object_name)
+        raise HTTPException(500, f"Extraction failed: {exc}")
+
     # Build doc dict for RAG ingestion
-    doc: Dict[str, Any] = {"id": doc_id}
-    if suffix == ".pdf":
-        import tempfile
-        # Write temporarily for pdfplumber if needed
-        with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
-            tmp.write(content)
-            tmp_path = tmp.name
-        doc["pdf_path"] = tmp_path
-    elif suffix == ".docx":
-        try:
-            from docx import Document as _Docx
-            d = _Docx(io.BytesIO(content))
-            doc["text"] = "\n".join(p.text for p in d.paragraphs if p.text.strip())
-        except Exception as exc:
-            delete_from_minio(object_name)
-            raise HTTPException(500, f"DOCX read error: {exc}")
-    else:
-        doc["text"] = content.decode("utf-8", errors="replace")
+    doc: Dict[str, Any] = {
+        "id": doc_id,
+        "text": extracted_text
+    }
 
     try:
         get_crag().ingest(doc)
     except Exception as exc:
         delete_from_minio(object_name)
         raise HTTPException(500, f"Ingestion failed: {exc}")
-        
-    # Cleanup temp pdf
-    if suffix == ".pdf" and "tmp_path" in locals():
-        Path(tmp_path).unlink(missing_ok=True)
 
     db_doc = Document(
         doc_id=doc_id,

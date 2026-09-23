@@ -129,23 +129,55 @@ class TextChunker:
         return chunks
     
     def _hierarchical_chunking(self, text: str, document_id: str) -> List[Dict[str, Any]]:
-        """Hierarchical chunking: paragraphs, then sentences if needed, with embeddings"""
+        """Hierarchical chunking: paragraphs, then sentences if needed, with embeddings. Properly handles markdown tables."""
         paragraphs = text.split("\n\n")
         chunks = []
         chunk_index = 0
         
+        def add_chunk(chunk_text: str, level: str):
+            nonlocal chunk_index
+            if not chunk_text.strip():
+                return
+            embedding = self.embedding_model.encode([chunk_text]).tolist()[0]
+            chunks.append({
+                "chunk_id": f"{document_id}_{uuid.uuid4().hex[:8]}",
+                "text": chunk_text,
+                "document_id": document_id,
+                "chunk_index": chunk_index,
+                "level": level,
+                "embedding": embedding
+            })
+            chunk_index += 1
+
         for paragraph in paragraphs:
+            is_table = paragraph.strip().startswith("|") and "\n|" in paragraph
+
             if len(paragraph) <= self.chunk_size:
-                embedding = self.embedding_model.encode([paragraph]).tolist()[0]
-                chunks.append({
-                    "chunk_id": f"{document_id}_{uuid.uuid4().hex[:8]}",
-                    "text": paragraph,
-                    "document_id": document_id,
-                    "chunk_index": chunk_index,
-                    "level": "paragraph",
-                    "embedding": embedding
-                })
-                chunk_index += 1
+                add_chunk(paragraph, "paragraph" if not is_table else "table")
+            elif is_table:
+                # Chunk large table row-by-row, preserving header
+                lines = paragraph.strip().split("\n")
+                if len(lines) >= 3 and lines[1].strip().startswith("|---"):
+                    header = lines[0] + "\n" + lines[1]
+                    current_table_chunk = []
+                    current_length = len(header)
+                    
+                    for row in lines[2:]:
+                        if current_length + len(row) + 1 > self.chunk_size and current_table_chunk:
+                            chunk_text = header + "\n" + "\n".join(current_table_chunk)
+                            add_chunk(chunk_text, "table_slice")
+                            current_table_chunk = [row]
+                            current_length = len(header) + len(row) + 1
+                        else:
+                            current_table_chunk.append(row)
+                            current_length += len(row) + 1
+                    
+                    if current_table_chunk:
+                        chunk_text = header + "\n" + "\n".join(current_table_chunk)
+                        add_chunk(chunk_text, "table_slice")
+                else:
+                    # Malformed or different format table, keep intact to prevent data loss
+                    add_chunk(paragraph, "table_full")
             else:
                 sentences = nltk.sent_tokenize(paragraph)
                 current_chunk = []
@@ -155,32 +187,15 @@ class TextChunker:
                     sentence_length = len(sentence)
                     if current_length + sentence_length > self.chunk_size and current_chunk:
                         chunk_text = " ".join(current_chunk)
-                        embedding = self.embedding_model.encode([chunk_text]).tolist()[0]
-                        chunks.append({
-                            "chunk_id": f"{document_id}_{uuid.uuid4().hex[:8]}",
-                            "text": chunk_text,
-                            "document_id": document_id,
-                            "chunk_index": chunk_index,
-                            "level": "sentence",
-                            "embedding": embedding
-                        })
+                        add_chunk(chunk_text, "sentence")
                         current_chunk = [sentence]
                         current_length = sentence_length
-                        chunk_index += 1
                     else:
                         current_chunk.append(sentence)
                         current_length += sentence_length
                 
                 if current_chunk:
                     chunk_text = " ".join(current_chunk)
-                    embedding = self.embedding_model.encode([chunk_text]).tolist()[0]
-                    chunks.append({
-                        "chunk_id": f"{document_id}_{uuid.uuid4().hex[:8]}",
-                        "text": chunk_text,
-                        "document_id": document_id,
-                        "chunk_index": chunk_index,
-                        "level": "sentence",
-                        "embedding": embedding
-                    })
-                    chunk_index += 1
+                    add_chunk(chunk_text, "sentence")
+                    
         return chunks

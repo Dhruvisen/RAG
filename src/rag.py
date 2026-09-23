@@ -38,107 +38,7 @@ class VectorStore:
         """Retrieve relevant documents based on query text using cosine similarity"""
         raise NotImplementedError
     
-    def _extract_text(self, document: Dict[str, Any]) -> str:
-        """Extract text from document, handling PDFs with table detection."""
-        if "pdf_path" in document and os.path.exists(document["pdf_path"]):
-            return self._extract_pdf_with_tables(document["pdf_path"])
-        return document.get("text", "")
 
-    def _extract_pdf_with_tables(self, pdf_path: str) -> str:
-        """Extract text and tables from a PDF, formatting tables as markdown."""
-        all_parts = []
-        with pdfplumber.open(pdf_path) as pdf:
-            for page in pdf.pages:
-                tables = page.extract_tables()
-                if tables:
-                    # Get bounding boxes of detected tables
-                    table_bboxes = []
-                    for table_obj in (page.find_tables() or []):
-                        table_bboxes.append(table_obj.bbox)
-
-                    # Extract non-table text by cropping outside table regions
-                    non_table_text = self._extract_non_table_text(page, table_bboxes)
-                    if non_table_text.strip():
-                        all_parts.append(non_table_text.strip())
-
-                    # Format each table as markdown
-                    for table in tables:
-                        md_table = self._table_to_markdown(table)
-                        if md_table:
-                            all_parts.append(md_table)
-                else:
-                    text = page.extract_text() or ""
-                    if text.strip():
-                        all_parts.append(text.strip())
-
-        return "\n\n".join(all_parts)
-
-    @staticmethod
-    def _extract_non_table_text(page, table_bboxes):
-        """Extract text from areas of the page outside table bounding boxes."""
-        if not table_bboxes:
-            return page.extract_text() or ""
-
-        # Crop text from regions above/below/between tables
-        page_height = page.height
-        page_width = page.width
-        text_parts = []
-
-        # Sort tables by vertical position (top of page first)
-        sorted_bboxes = sorted(table_bboxes, key=lambda b: b[1])
-
-        prev_bottom = 0
-        for bbox in sorted_bboxes:
-            # bbox = (x0, top, x1, bottom)
-            top = bbox[1]
-            if top > prev_bottom + 1:
-                crop = page.within_bbox((0, prev_bottom, page_width, top))
-                text = crop.extract_text() or ""
-                if text.strip():
-                    text_parts.append(text.strip())
-            prev_bottom = bbox[3]
-
-        # Text below the last table
-        if prev_bottom < page_height - 1:
-            try:
-                crop = page.within_bbox((0, prev_bottom, page_width, page_height))
-                text = crop.extract_text() or ""
-                if text.strip():
-                    text_parts.append(text.strip())
-            except Exception:
-                pass
-
-        return "\n\n".join(text_parts)
-
-    @staticmethod
-    def _table_to_markdown(table) -> str:
-        """Convert a pdfplumber table (list of rows) to a markdown table string."""
-        if not table or len(table) < 1:
-            return ""
-
-        # Clean cell values
-        def clean_cell(cell):
-            if cell is None:
-                return ""
-            return str(cell).replace("\n", " ").strip()
-
-        rows = [[clean_cell(cell) for cell in row] for row in table]
-
-        # Use first row as header
-        header = rows[0]
-        if not any(header):
-            return ""
-
-        lines = []
-        lines.append("| " + " | ".join(header) + " |")
-        lines.append("| " + " | ".join(["---"] * len(header)) + " |")
-
-        for row in rows[1:]:
-            # Pad row if it has fewer columns than header
-            padded = row + [""] * (len(header) - len(row))
-            lines.append("| " + " | ".join(padded[:len(header)]) + " |")
-
-        return "\n".join(lines)
 
 class ChromaDBStore(VectorStore):
     """ChromaDB implementation of vector store using cosine similarity"""
@@ -155,10 +55,10 @@ class ChromaDBStore(VectorStore):
         self.collection = self.client.get_or_create_collection(name=collection_name)
     
     def store(self, document: Dict[str, Any]) -> None:
-        text = self._extract_text(document)
+        text = document.get("text", "")
         document_id = document.get("id", "0")
         chunks = self.chunker.chunk_text(text, document_id)
-        metadata = {k: v for k, v in document.items() if k not in ["text", "pdf_path"]}
+        metadata = {k: v for k, v in document.items() if k not in ["text"]}
         
         for chunk in chunks:
             chunk_metadata = metadata.copy()
@@ -225,10 +125,10 @@ class QdrantStore(VectorStore):
                 raise RuntimeError(f"Failed to create Qdrant collection: {str(create_e)}")
     
     def store(self, document: Dict[str, Any]) -> None:
-        text = self._extract_text(document)
+        text = document.get("text", "")
         document_id = document.get("id", "0")
         chunks = self.chunker.chunk_text(text, document_id)
-        metadata = {k: v for k, v in document.items() if k not in ["text", "pdf_path"]}
+        metadata = {k: v for k, v in document.items() if k not in ["text"]}
         
         for chunk in chunks:
             point_id = int(chunk["chunk_id"].split("_")[-1], 16)

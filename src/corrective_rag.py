@@ -294,6 +294,10 @@ class CorrectiveRAG:
         vector_chunks = self._retrieve_vector(retrieval_query)
         trace.vector_chunks_retrieved = len(vector_chunks)
         logger.info("[STEP 2/6] Result: Retrieved %d chunks.", len(vector_chunks))
+        for i, chunk in enumerate(vector_chunks, 1):
+            preview = chunk.get("text", "")[:150].replace("\n", " ")
+            score = chunk.get("distance", chunk.get("rerank_score", "N/A"))
+            logger.info("  Chunk %d [%s] (score: %s): %s...", i, chunk.get("chunk_id", "?"), score, preview)
 
         # Step 2: Hybrid search (BM25 + vector fusion)
         if self.config.enable_hybrid_search and self._hybrid_searcher and self._corpus_cache:
@@ -325,6 +329,11 @@ class CorrectiveRAG:
             logger.info("[STEP 3/6] Result: Re-ranking disabled or reranker not initialized.")
 
         working_chunks = vector_chunks[: self.config.final_top_k]
+        logger.info("  ── Final context chunks ──")
+        for i, chunk in enumerate(working_chunks, 1):
+            preview = chunk.get("text", "")[:150].replace("\n", " ")
+            score = chunk.get("rerank_score", chunk.get("distance", "N/A"))
+            logger.info("  Chunk %d [%s] (score: %s): %s...", i, chunk.get("chunk_id", "?"), score, preview)
 
         # Step 4: Grade retrieved chunks
         logger.info("[STEP 4/6] Grading retrieved chunks & checking web fallback...")

@@ -58,8 +58,9 @@ class RetrievalGraderConfig:
     """Configuration for the retrieval grader."""
     model_name: str = _DEFAULT_RETRIEVAL_MODEL
     # Thresholds calibrated for ms-marco cross-encoder (logit range ~-10 to +10)
-    relevant_threshold: float = 0.5
-    partial_threshold: float = 0.0
+    # Lowered thresholds since markdown tables often score lower than natural language
+    relevant_threshold: float = -3.0
+    partial_threshold: float = -7.0
     # If the fraction of relevant+partial chunks is below this, trigger fallback
     min_acceptable_ratio: float = 0.3
 

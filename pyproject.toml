@@ -26,6 +26,9 @@ dependencies = [
     "fastapi>=0.111.0",
     "uvicorn[standard]>=0.29.0",
     "python-multipart>=0.0.9",
+    "pandas>=3.0.6",
+    "openpyxl>=3.1.5",
+    "tabulate>=0.10.0",
 ]
 
 [project.optional-dependencies]

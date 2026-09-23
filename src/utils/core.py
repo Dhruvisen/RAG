@@ -6,6 +6,49 @@ from typing import Any, Dict
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
+
+# ── Colored log formatter ───────────────────────────────────────────────
+
+class ColoredFormatter(logging.Formatter):
+    """ANSI-colored log formatter for terminal readability."""
+
+    RESET = "\033[0m"
+    COLORS = {
+        logging.DEBUG:    "\033[90m",        # grey
+        logging.INFO:     "\033[92m",        # green
+        logging.WARNING:  "\033[93m",        # yellow
+        logging.ERROR:    "\033[91m",        # red
+        logging.CRITICAL: "\033[91;1m",      # bold red
+    }
+    CYAN = "\033[96m"
+    BOLD = "\033[1m"
+    DIM = "\033[2m"
+
+    def format(self, record):
+        color = self.COLORS.get(record.levelno, self.RESET)
+        ts = self.formatTime(record, self.datefmt)
+
+        # Highlight STEP markers in bold cyan
+        msg = record.getMessage()
+        if "[STEP " in msg:
+            msg = msg.replace("[STEP ", f"{self.BOLD}\033[96m[STEP ")
+            msg = msg.replace("]", f"]{self.RESET}{color}", 1)
+
+        return (
+            f"{self.CYAN}{ts}{self.RESET} "
+            f"{color}[{record.levelname}]{self.RESET} "
+            f"{color}{msg}{self.RESET}"
+        )
+
+
+# Set up root logger with colored handler
+_handler = logging.StreamHandler()
+_handler.setFormatter(ColoredFormatter(datefmt="%H:%M:%S"))
+logging.root.handlers = [_handler]
+logging.root.setLevel(logging.INFO)
+
+logger = logging.getLogger(__name__)
+
 # Paths
 BASE_DIR = Path(__file__).parent.parent.parent.resolve()
 FRONTEND_DIR = BASE_DIR / "frontend"
@@ -21,14 +64,6 @@ def get_db():
         yield db
     finally:
         db.close()
-
-# Logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s",
-    datefmt="%H:%M:%S"
-)
-logger = logging.getLogger(__name__)
 
 # CRAG singleton
 _crag = None
