@@ -55,7 +55,7 @@ FRONTEND_DIR = BASE_DIR / "frontend"
 
 # Database Configuration
 POSTGRES_URL = "postgresql://rag_user:rag_password@localhost:5440/rag_db"
-engine = create_engine(POSTGRES_URL)
+engine = create_engine(POSTGRES_URL, pool_pre_ping=True)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 def get_db():
@@ -74,13 +74,14 @@ def get_crag():
         import sys
         if str(BASE_DIR) not in sys.path:
             sys.path.insert(0, str(BASE_DIR))
+        import os
         from src.corrective_rag import CorrectiveRAG, CRAGConfig
         from src.generator import GeneratorConfig
         logger.info("Initialising CRAG pipeline...")
         _crag = CorrectiveRAG(
             CRAGConfig(
                 collection_name="webapp_collection",
-                generator_config=GeneratorConfig(model="qwen2.5:1.5b"),
+                generator_config=GeneratorConfig(model=os.environ.get("PRIMARY_LLM_MODEL", "qwen2.5:7b")),
             )
         )
         logger.info("CRAG pipeline ready.")

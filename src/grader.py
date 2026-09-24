@@ -60,7 +60,7 @@ class RetrievalGraderConfig:
     # Thresholds calibrated for ms-marco cross-encoder (logit range ~-10 to +10)
     # Lowered thresholds since markdown tables often score lower than natural language
     relevant_threshold: float = -3.0
-    partial_threshold: float = -7.0
+    partial_threshold: float = -9.0
     # If the fraction of relevant+partial chunks is below this, trigger fallback
     min_acceptable_ratio: float = 0.3
 

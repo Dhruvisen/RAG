@@ -9,11 +9,11 @@ Supports:
 - Automatic connection validation with descriptive errors
 
 Model recommendation (no GPU, CPU-only):
-  qwen2.5:1.5b  - Alibaba Qwen2.5 1.5B (935MB, ~2-3s/query on CPU)
+  qwen2.5:7b  - Alibaba Qwen2.5 7B (4.7GB, ~60-90s/query on CPU)
                    Grouped-query attention makes it 4-5x faster than llama3.2:3b.
                    Ideal for RAG: the model synthesises from context, not memory.
 
-  Pull with: ollama pull qwen2.5:1.5b
+  Pull with: ollama pull qwen2.5:7b
 """
 
 from __future__ import annotations
@@ -23,6 +23,7 @@ import logging
 from dataclasses import dataclass, field
 from typing import Generator, List, Dict, Any, Optional
 
+import os
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
@@ -39,16 +40,16 @@ class GeneratorConfig:
     """
     Immutable configuration for the OllamaGenerator.
 
-    Defaults are tuned for qwen2.5:1.5b on CPU:
+    Defaults are tuned for qwen2.5:7b on CPU:
       - max_tokens=384: RAG answers should be concise; fewer tokens = faster.
       - temperature=0.05: Near-deterministic - RAG needs factual, not creative output.
       - request_timeout=60: 1.5B model responds in <30s on CPU; 60s is safe headroom.
     """
-    model: str = "qwen2.5:1.5b"
+    model: str = os.environ.get("PRIMARY_LLM_MODEL", "qwen2.5:7b")
     base_url: str = "http://localhost:11434"
     temperature: float = 0.05   # near-deterministic for factual RAG generation
     max_tokens: int = 384       # concise answers = faster on CPU
-    request_timeout: int = 60   # qwen2.5:1.5b responds well within 60s on CPU
+    request_timeout: int = 300  # increased to 300s to support 7b models on CPU
     # HTTP retry settings for transient network errors
     http_retries: int = 3
     http_backoff_factor: float = 0.5
@@ -78,7 +79,7 @@ class OllamaGenerator:
     """
     HTTP client for Ollama's local inference API.
 
-    Default model: qwen2.5:1.5b - optimised for CPU inference.
+    Default model: qwen2.5:7b - optimised for inference.
     Alibaba's Qwen2.5 uses grouped-query attention (GQA) which dramatically
     reduces memory bandwidth on CPU vs standard multi-head attention.
 
@@ -293,14 +294,15 @@ class OllamaGenerator:
             source = chunk.get("metadata", {}).get("document_id", f"doc-{idx}")
             context_parts.append(f"[Source {idx} | {source}]\n{chunk['text']}")
 
-        context_text = "\n\n---\n\n".join(context_parts)
+        context_text = "\n\n=====\n\n".join(context_parts)
 
         return (
             "You are a precise, helpful assistant. "
             "Answer the question using ONLY the provided context. "
-            "If the context does not contain sufficient information, "
-            "respond with: 'The provided documents do not contain enough "
-            "information to answer this question.'\n\n"
+            "The context may contain tabular data formatted as Markdown tables. "
+            "You must carefully read these tables and account for synonyms or abbreviations in column headers. "
+            "If the information is missing from the context, respond with: "
+            "'The provided documents do not contain enough information to answer this question.'\n\n"
             f"Context:\n{context_text}\n\n"
             f"Question: {question}\n\n"
             "Answer (concise and factual, cite [Source N] where relevant):"

@@ -61,7 +61,7 @@ class CRAGConfig:
     All sub-component configs can be overridden individually.
 
     CPU-optimised defaults (no GPU required):
-      - LLM: qwen2.5:1.5b via Ollama (~935MB, ~2-3s/query on CPU)
+      - LLM: qwen2.5:7b via Ollama (~4.7GB, ~60-90s/query on CPU)
       - Graders: cross-encoder/ms-marco-MiniLM-L-6-v2 (runs fast on CPU)
       - initial_top_k=8: balanced recall without over-fetching
       - final_top_k=4: fewer chunks = shorter prompt = faster generation
@@ -83,7 +83,7 @@ class CRAGConfig:
     web_search_max_results: int = 4   # fewer web results = faster fallback
 
     # --- Sub-component configs (defaults tuned for CPU) ---
-    generator_config: GeneratorConfig = field(default_factory=GeneratorConfig)  # qwen2.5:1.5b
+    generator_config: GeneratorConfig = field(default_factory=GeneratorConfig)  # qwen2.5:7b
     retrieval_grader_config: RetrievalGraderConfig = field(default_factory=RetrievalGraderConfig)
     answer_grader_config: AnswerGraderConfig = field(default_factory=AnswerGraderConfig)
     reranker_config: RerankerConfig = field(default_factory=RerankerConfig)
@@ -295,12 +295,12 @@ class CorrectiveRAG:
         trace.vector_chunks_retrieved = len(vector_chunks)
         logger.info("[STEP 2/6] Result: Retrieved %d chunks.", len(vector_chunks))
         for i, chunk in enumerate(vector_chunks, 1):
-            preview = chunk.get("text", "")[:150].replace("\n", " ")
+            text = chunk.get("text", "")
             score = chunk.get("distance", chunk.get("rerank_score", "N/A"))
-            logger.info("  Chunk %d [%s] (score: %s): %s...", i, chunk.get("chunk_id", "?"), score, preview)
+            logger.info("  Chunk %d [%s] (score: %s): %s", i, chunk.get("chunk_id", "?"), score, text)
 
         # Step 2: Hybrid search (BM25 + vector fusion)
-        if self.config.enable_hybrid_search and self._hybrid_searcher and self._corpus_cache:
+        if self.config.enable_hybrid_search and self._hybrid_searcher:
             try:
                 hybrid_chunks = self._hybrid_searcher.search_to_dicts(
                     query=question,
@@ -331,9 +331,9 @@ class CorrectiveRAG:
         working_chunks = vector_chunks[: self.config.final_top_k]
         logger.info("  ── Final context chunks ──")
         for i, chunk in enumerate(working_chunks, 1):
-            preview = chunk.get("text", "")[:150].replace("\n", " ")
+            text = chunk.get("text", "")
             score = chunk.get("rerank_score", chunk.get("distance", "N/A"))
-            logger.info("  Chunk %d [%s] (score: %s): %s...", i, chunk.get("chunk_id", "?"), score, preview)
+            logger.info("  Chunk %d [%s] (score: %s): %s", i, chunk.get("chunk_id", "?"), score, text)
 
         # Step 4: Grade retrieved chunks
         logger.info("[STEP 4/6] Grading retrieved chunks & checking web fallback...")

@@ -72,7 +72,12 @@ export default function Sidebar({ docs, onDocsChange, onToast, modelReady, activ
       onDocsChange((prev) => prev.filter((d) => d.doc_id !== id));
       onToast('Document removed');
     } catch (err) {
-      onToast(err.message, 'error');
+      if (err.status === 404) {
+        onDocsChange((prev) => prev.filter((d) => d.doc_id !== id));
+        onToast('Document already removed');
+      } else {
+        onToast(err.message, 'error');
+      }
     }
   }, [onDocsChange, onToast]);
 

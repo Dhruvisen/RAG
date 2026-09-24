@@ -1,9 +1,11 @@
 import io
 import pandas as pd
 from .base import DocumentExtractor
+from src.utils.core import logger
 
 class ExcelExtractor(DocumentExtractor):
     def extract(self, content: bytes) -> str:
+        logger.info("Extracting data from Excel document.")
         try:
             dfs = pd.read_excel(io.BytesIO(content), sheet_name=None)
             md_parts = []

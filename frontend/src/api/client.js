@@ -11,7 +11,9 @@ async function request(method, path, body = null, isFormData = false) {
   const res = await fetch(`${API_BASE}${path}`, options);
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }));
-    throw new Error(err.detail || 'Request failed');
+    const error = new Error(err.detail || 'Request failed');
+    error.status = res.status;
+    throw error;
   }
   if (res.status === 204) return null;
   return res.json();

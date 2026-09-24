@@ -3,7 +3,7 @@ import tempfile
 from pathlib import Path
 import pdfplumber
 from .base import DocumentExtractor
-
+from src.utils.core import logger
 class PDFExtractor(DocumentExtractor):
     def extract(self, content: bytes) -> str:
         # Write temporarily for pdfplumber
@@ -20,11 +20,11 @@ class PDFExtractor(DocumentExtractor):
         """Extract text and tables from a PDF, formatting tables as markdown."""
         all_parts = []
         with pdfplumber.open(pdf_path) as pdf:
-            print(f"--- Extracting from PDF: {os.path.basename(pdf_path)} ---")
+            logger.info(f"--- Extracting from PDF: {os.path.basename(pdf_path)} ---")
             for page_num, page in enumerate(pdf.pages, 1):
                 tables = page.extract_tables()
                 if tables:
-                    print(f"Page {page_num}: Found {len(tables)} tables")
+                    logger.info(f"Page {page_num}: Found {len(tables)} tables")
                     table_bboxes = [t.bbox for t in (page.find_tables() or [])]
 
                     non_table_text = self._extract_non_table_text(page, table_bboxes)
@@ -34,7 +34,7 @@ class PDFExtractor(DocumentExtractor):
                     for t_idx, table in enumerate(tables, 1):
                         md_table = self._table_to_markdown(table)
                         if md_table:
-                            print(f"  Table {t_idx} extracted (first 100 chars): {md_table[:100].replace(chr(10), ' ')}")
+                            logger.info(f"  Table {t_idx} extracted (first 100 chars): {md_table[:100].replace(chr(10), ' ')}")
                             all_parts.append(md_table)
                 else:
                     text = page.extract_text() or ""
